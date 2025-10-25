@@ -1,0 +1,149 @@
+1. Created IAM role with Lambda trust policy 
+aws iam create-role --role-name LambdaExecRole --assume-role-policy-document file://trust-policy.json
+
+answer :
+{
+    "Role" : {
+        "Path": "/",
+        "RoleName": "LambdaExecRole"
+        "RoleId": "AROAUJ3VUNFBO5KF2HBWN",
+        "Arn": "arn:aws:iam::296062576962:role/LambdaExecRole",
+        "CreateDate": "2025-10-23T19:27:10+00:00",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "lambda.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+    }
+}
+
+2.Attach permissions, Lambda needs access 
+- CloudWatch Logs (to write logs)
+- Comprehend ( to analyze entities)
+- Bedrock (to generate responses)
+
+aws iam attach-role-policy --role-name LambdaExecRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+aws iam attach-role-policy --role-name LambdaExecRole --policy-arn arn:aws:iam::aws:policy/ComprehendReadOnly
+
+3. Create Bedrock Access policy 
+aws iam create-policy --policy-name BedrockInvokePolicy --policy-document file://bedrock-policy.json
+
+{
+    "Policy": {
+        "PolicyName": "BedrockInvokePolicy",
+        "PolicyId": "ANPAUJ3VUNFBP4NWQZGGB",
+        "Arn": "arn:aws:iam::296062576962:policy/BedrockInvokePolicy",
+        "Path": "/",
+        "DefaultVersionId": "v1",
+        "AttachmentCount": 0,
+        "PermissionsBoundaryUsageCount": 0,
+        "IsAttachable": true,
+        "CreateDate": "2025-10-23T19:51:31+00:00",
+        "UpdateDate": "2025-10-23T19:51:31+00:00"
+    }
+}
+
+Attach it to the role (replace YOUR_ACCOUNT_ID with 296062576962)
+aws iam attach-role-policy --role-name LambdaExecRole --policy-arn arn:aws:iam::296062576962:policy/BedrockInvokePolicy
+
+
+4. Enable Bedrock access: 
+
+aws iam attach-user-policy --user-name Sah_admin --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+
+aws bedrock list-foundation-models --region us-east-1
+
+5. Check whats in the policy 
+aws iam get-policy-version --policy-arn arn:aws:iam::296062576962:policy/policy_bedrock_1 --version-id v1
+
+{
+    "PolicyVersion": {
+        "Document": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "VisualEditor0",
+                    "Effect": "Deny",
+                    "Action": "bedrock:*",
+                    "Resource": "*"
+                }
+            ]
+        },
+        "VersionId": "v1",
+        "IsDefaultVersion": true,
+        "CreateDate": "2025-04-08T04:15:48+00:00"
+    }
+}
+
+this is blocking everything! 
+
+so detached rthat policy 
+aws iam detach-user-policy --user-name Sah_admin --policy-arn arn:aws:iam::296062576962:policy/policy_bedrock_1
+
+
+6. This will fetch all the list of all the models on bedrock 
+aws bedrock list-foundation-models --region us-east-1
+
+7. DEPLOY LAMBDA 
+first zip it 
+Compress-Archive -Path lambda_function.py -DestinationPath lambda_function.zip -Force
+
+deploying lambda: 
+aws lambda create-function --function-name LexChatbotFunction --runtime python3.11 --role arn:aws:iam::296062576962:role/LambdaExecRole --handler lambda_function.lambda_handler --zip-file fileb://lambda_function.zip --timeout 30 --region us-east-1
+
+adding resume variable: 
+aws lambda update-function-configuration --function-name LexChatbotFunction --environment "Variables={RESUME_SUMMARY='Sahithi Aekka is a Cloud Solutions Architect with 3+ years of AWS experience, specializing in serverless architectures, AI/ML integration, and cost optimization. AWS certified professional seeking senior cloud architect, cloud engineer roles.'}" --region us-east-1
+
+8. Grant lex permissions to invoke lambda 
+aws lambda add-permission --function-name LexChatbotFunction --statement-id lex-invoke-permission --action lambda:InvokeFunction --principal lexv2.amazonaws.com --region us-east-1
+
+tep 3: Add Sample Utterances (Optional but Recommended)
+In the "Sample utterances" section, add:
+hello
+hi
+tell me about yourself
+what are your skills
+who is Sahithi
+Step 4: Configure Fulfillment ⚡ (CRITICAL)
+Scroll down to the "Fulfillment" section
+Toggle "Active" to ON
+Check the box: "Use a Lambda function for fulfillment"
+Lambda function dropdown: Select LexChatbotFunction
+Lambda function version: $LATEST
+Click "Save intent" (bottom right)
+Step 5: Build the Bot
+Click "Build" button (top right corner)
+Wait 1-2 minutes for build to complete
+You'll see "Build successful" messag
+
+
+
+Lex
+Bots
+Bot: SahithiAekka
+Aliases
+Alias: TestBotAlias
+Alias language support: English (US)
+Alias language support: English (US)
+Lambda function - optional
+This Lambda function is invoked for initialization, validation, and fulfillment.
+Source
+Lambda function version or alias
+Learn more about Lambda
+
+
+
+got an error 
+edited lambda func response in according to v2 
+
+then deplo 
+Compress-Archive -Path lambda_function.py -DestinationPath lambda_function.zip -Force
+aws lambda update-function-code --function-name LexChatbotFunction --zip-file fileb://lambda_function.zip --region us-east-1

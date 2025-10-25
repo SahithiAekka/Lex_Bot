@@ -1,0 +1,4 @@
+Option 3: Hybrid Approach (Future V2)
+Pros: Summary for quick answers, fetch full resume only when needed
+Cons: More complex logic
+Best for: Smart, context-aware responses
